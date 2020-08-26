@@ -4,7 +4,7 @@ call conda activate %TFVERSION%
 @rem Possible models
 @rem faster_rcnn_inception_v2_coco_2018_01_28
 
-set CHECKPOINT=253043
+set CHECKPOINT=500000
 set MODEL_TYPE=faster_rcnn_inception_v2_coco_2018_01_28
 set MODEL_DIR="D:\\Development\\VertigoML\\tensorflow_models\\research\\object_detection\\training_sets\\COTS"
 set PIPELINE_CONFIG_PATH=%MODEL_DIR%\%TFVERSION%_configs\%MODEL_TYPE%.config
