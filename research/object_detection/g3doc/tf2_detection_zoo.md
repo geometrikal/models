@@ -15,6 +15,8 @@ They are also useful for initializing your models when training on novel
 datasets. You can try this out on our few-shot training
 [colab](../colab_tutorials/eager_few_shot_od_training_tf2_colab.ipynb).
 
+Please look at [this guide](running_on_mobile_tf2.md) for mobile inference.
+
 <!-- mdlint on -->
 
 Finally, if you would like to train these models from scratch, you can find the
@@ -23,9 +25,9 @@ model configs in this [directory](../configs/tf2) (also in the linked
 
 Model name                                                                                                                                                                  | Speed (ms) | COCO mAP | Outputs
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------: | :----------: | :-----:
-[CenterNet HourGlass104 512x512](http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_hg104_512x512_coco17_tpu-8.tar.gz)                    | 70         | 41.6           | Boxes
+[CenterNet HourGlass104 512x512](http://download.tensorflow.org/models/object_detection/tf2/20200713/centernet_hg104_512x512_coco17_tpu-8.tar.gz)                    | 70         | 41.9           | Boxes
 [CenterNet HourGlass104 Keypoints 512x512](http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_hg104_512x512_kpts_coco17_tpu-32.tar.gz)                    | 76         | 40.0/61.4           | Boxes/Keypoints
-[CenterNet HourGlass104 1024x1024](http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_hg104_1024x1024_coco17_tpu-32.tar.gz)               | 197       | 43.5           | Boxes
+[CenterNet HourGlass104 1024x1024](http://download.tensorflow.org/models/object_detection/tf2/20200713/centernet_hg104_1024x1024_coco17_tpu-32.tar.gz)               | 197       | 44.5           | Boxes
 [CenterNet HourGlass104 Keypoints 1024x1024](http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_hg104_1024x1024_kpts_coco17_tpu-32.tar.gz)               | 211       | 42.8/64.5          | Boxes/Keypoints
 [CenterNet Resnet50 V1 FPN 512x512](http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_resnet50_v1_fpn_512x512_coco17_tpu-8.tar.gz)     | 27         | 31.2           | Boxes
 [CenterNet Resnet50 V1 FPN Keypoints 512x512](http://download.tensorflow.org/models/object_detection/tf2/20200711/centernet_resnet50_v1_fpn_512x512_kpts_coco17_tpu-8.tar.gz)     | 30         | 29.3/50.7         | Boxes/Keypoints

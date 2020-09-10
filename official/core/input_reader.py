@@ -15,12 +15,17 @@
 # ==============================================================================
 """A common dataset reader."""
 
+import random
 from typing import Any, Callable, List, Optional
 
 import tensorflow as tf
 import tensorflow_datasets as tfds
 
 from official.modeling.hyperparams import config_definitions as cfg
+
+
+def _get_random_integer():
+  return random.randint(0, (1 << 31) - 1)
 
 
 class InputReader:
@@ -32,8 +37,9 @@ class InputReader:
                dataset_fn=tf.data.TFRecordDataset,
                decoder_fn: Optional[Callable[..., Any]] = None,
                parser_fn: Optional[Callable[..., Any]] = None,
-               dataset_transform_fn: Optional[Callable[[tf.data.Dataset],
-                                                       tf.data.Dataset]] = None,
+               transform_and_batch_fn: Optional[Callable[
+                   [tf.data.Dataset, Optional[tf.distribute.InputContext]],
+                   tf.data.Dataset]] = None,
                postprocess_fn: Optional[Callable[..., Any]] = None):
     """Initializes an InputReader instance.
 
@@ -48,9 +54,12 @@ class InputReader:
       parser_fn: An optional `callable` that takes the decoded raw tensors dict
         and parse them into a dictionary of tensors that can be consumed by the
         model. It will be executed after decoder_fn.
-      dataset_transform_fn: An optional `callable` that takes a
-        `tf.data.Dataset` object and returns a `tf.data.Dataset`. It will be
-        executed after parser_fn.
+      transform_and_batch_fn: An optional `callable` that takes a
+        `tf.data.Dataset` object and an optional `tf.distribute.InputContext` as
+        input, and returns a `tf.data.Dataset` object. It will be
+        executed after `parser_fn` to transform and batch the dataset; if None,
+        after `parser_fn` is executed, the dataset will be batched into
+        per-replica batch size.
       postprocess_fn: A optional `callable` that processes batched tensors. It
         will be executed after batching.
     """
@@ -91,6 +100,7 @@ class InputReader:
     self._cache = params.cache
     self._cycle_length = params.cycle_length
     self._block_length = params.block_length
+    self._deterministic = params.deterministic
     self._sharding = params.sharding
     self._examples_consume = params.examples_consume
     self._tfds_split = params.tfds_split
@@ -101,8 +111,14 @@ class InputReader:
     self._dataset_fn = dataset_fn
     self._decoder_fn = decoder_fn
     self._parser_fn = parser_fn
-    self._dataset_transform_fn = dataset_transform_fn
+    self._transform_and_batch_fn = transform_and_batch_fn
     self._postprocess_fn = postprocess_fn
+    self._seed = _get_random_integer()
+
+    self._enable_tf_data_service = (
+        params.enable_tf_data_service and params.tf_data_service_address)
+    self._tf_data_service_address = params.tf_data_service_address
+    self._tf_data_service_job_name = params.tf_data_service_job_name
 
   def _read_sharded_files(
       self,
@@ -113,9 +129,22 @@ class InputReader:
       dataset = tf.data.Dataset.from_tensor_slices(self._shards)
     else:
       dataset = tf.data.Dataset.list_files(
-          self._input_patterns, shuffle=self._is_training)
+          self._input_patterns,
+          seed=self._seed,
+          shuffle=self._is_training)
+
+    # Shuffle and repeat at file level.
+    if self._shards and self._is_training:
+      dataset = dataset.shuffle(
+          len(self._shards),
+          seed=self._seed,
+          reshuffle_each_iteration=True)
+
+    # Do not enable sharding if tf.data service is enabled, as sharding will be
+    # handled inside tf.data service.
     if self._sharding and input_context and (
-        input_context.num_input_pipelines > 1):
+        input_context.num_input_pipelines > 1 and
+        not self._enable_tf_data_service):
       dataset = dataset.shard(input_context.num_input_pipelines,
                               input_context.input_pipeline_id)
     if self._is_training:
@@ -125,7 +154,8 @@ class InputReader:
         map_func=self._dataset_fn,
         cycle_length=self._cycle_length,
         block_length=self._block_length,
-        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        num_parallel_calls=tf.data.experimental.AUTOTUNE,
+        deterministic=self._deterministic)
     return dataset
 
   def _read_single_file(
@@ -141,8 +171,11 @@ class InputReader:
     options.experimental_distribute.auto_shard_policy = (
         tf.data.experimental.AutoShardPolicy.OFF)
     dataset = dataset.with_options(options)
+    # Do not enable sharding if tf.data service is enabled, as sharding will be
+    # handled inside tf.data service.
     if self._sharding and input_context and (
-        input_context.num_input_pipelines > 1):
+        input_context.num_input_pipelines > 1 and
+        not self._enable_tf_data_service):
       dataset = dataset.shard(input_context.num_input_pipelines,
                               input_context.input_pipeline_id)
     if self._is_training:
@@ -214,13 +247,27 @@ class InputReader:
     dataset = maybe_map_fn(dataset, self._decoder_fn)
     dataset = maybe_map_fn(dataset, self._parser_fn)
 
-    if self._dataset_transform_fn is not None:
-      dataset = self._dataset_transform_fn(dataset)
+    if self._transform_and_batch_fn is not None:
+      dataset = self._transform_and_batch_fn(dataset, input_context)
+    else:
+      per_replica_batch_size = input_context.get_per_replica_batch_size(
+          self._global_batch_size) if input_context else self._global_batch_size
+      dataset = dataset.batch(
+          per_replica_batch_size, drop_remainder=self._drop_remainder)
 
-    per_replica_batch_size = input_context.get_per_replica_batch_size(
-        self._global_batch_size) if input_context else self._global_batch_size
-
-    dataset = dataset.batch(
-        per_replica_batch_size, drop_remainder=self._drop_remainder)
     dataset = maybe_map_fn(dataset, self._postprocess_fn)
+
+    if self._enable_tf_data_service:
+      dataset = dataset.apply(
+          tf.data.experimental.service.distribute(
+              processing_mode='parallel_epochs',
+              service=self._tf_data_service_address,
+              job_name=self._tf_data_service_job_name))
+
+    dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+
+    if self._deterministic is not None:
+      options = tf.data.Options()
+      options.experimental_deterministic = self._deterministic
+      dataset = dataset.with_options(options)
     return dataset.prefetch(tf.data.experimental.AUTOTUNE)
