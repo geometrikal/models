@@ -1,0 +1,5 @@
+set TRAINING_SET=20200716_cots
+set CONFIG_NAME=ssdlite_mobilenet_v2_coco_2018_05_09
+rem set CONFIG_NAME=ssd_mobilenet_v2_quantized_300x300_coco_2019_01_03
+set DATASET_NAME=20200717_fitz_4
+set CKPT=17594

@@ -1,11 +1,27 @@
-"""Setup script for object_detection with TF1.0."""
+"""Setup script for object_detection with TF2.0."""
 import os
 from setuptools import find_packages
 from setuptools import setup
 
-REQUIRED_PACKAGES = ['apache-beam', 'pillow', 'lxml', 'matplotlib', 'Cython',
-                     'contextlib2', 'tf-slim', 'six', 'pycocotools', 'scipy',
-                     'pandas']
+# Note: adding apache-beam to required packages causes conflict with
+# tf-models-offical requirements. These packages request for incompatible
+# oauth2client package.
+REQUIRED_PACKAGES = [
+    # Required for apache-beam with PY3
+    'avro-python3',
+    'apache-beam',
+    'pillow',
+    'lxml',
+    'matplotlib',
+    'Cython',
+    'contextlib2',
+    'tf-slim',
+    'six',
+    'pycocotools',
+    'scipy',
+    'pandas',
+    'tf-models-official'
+]
 
 setup(
     name='object_detection',
@@ -22,6 +38,6 @@ setup(
         'deployment': os.path.join('slim', 'deployment'),
         'scripts': os.path.join('slim', 'scripts'),
     },
-    description='Tensorflow Object Detection Library with TF1.0',
+    description='Tensorflow Object Detection Library',
     python_requires='>3.6',
 )
